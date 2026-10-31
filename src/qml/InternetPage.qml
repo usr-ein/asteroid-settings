@@ -17,105 +17,26 @@
 
 import QtQuick 2.9
 import org.asteroid.controls 1.0
-import Nemo.DBus 2.0
 import Connman 0.2
 
 // How the watch reaches the internet: Wi-Fi, the phone's hotspot over
-// Bluetooth, or nothing (see NetworkMode.qml), and the state of each link.
+// classic Bluetooth, or nothing (see NetworkMode.qml); whether classic
+// Bluetooth is on; and the state of each link (see PhoneLink.qml).
 // The qsTr() strings are new in this fork and have no translations yet; the
 // qsTrId() ones reuse the app's.
 Item {
     id: page
 
     readonly property var manager: managerFactory.instance
-    readonly property string adapterPath: "/org/bluez/hci0"
-    // The phone in BlueZ: the device behind connman's hotspot service, or
-    // else the first paired phone.
-    property string phonePath: ""
-    // BlueZ adds org.bluez.Battery1 to a device once its LE link is up and its
-    // GATT battery service is read, and removes it when the LE link drops,
-    // whatever the classic link does. Device1.Connected can't tell: it stays
-    // true while either link is up.
-    property bool phoneLe: false
-    readonly property bool phoneConnected: phonePath !== "" && phoneDevice.connected
 
     NetworkMode { id: networkMode }
 
+    PhoneLink {
+        id: phoneLink
+        hotspotServicePath: networkMode.hotspot.path
+    }
+
     NetworkManagerFactory { id: managerFactory }
-
-    DBusInterface {
-        id: adapter
-        bus: DBus.SystemBus
-        service: "org.bluez"
-        path: page.adapterPath
-        iface: "org.bluez.Adapter1"
-        propertiesEnabled: true
-        property bool powered: false
-    }
-
-    DBusInterface {
-        id: phoneDevice
-        bus: DBus.SystemBus
-        service: "org.bluez"
-        path: page.phonePath
-        iface: "org.bluez.Device1"
-        propertiesEnabled: true
-        property bool connected: false
-    }
-
-    DBusInterface {
-        id: bluez
-        bus: DBus.SystemBus
-        service: "org.bluez"
-        path: "/"
-        iface: "org.freedesktop.DBus.ObjectManager"
-        signalsEnabled: true
-
-        // GATT objects come and go with the LE link; only devices matter here.
-        function interfacesAdded(path, interfaces) { page.objectsChanged(path) }
-        function interfacesRemoved(path, interfaces) { page.objectsChanged(path) }
-    }
-
-    function objectsChanged(path) {
-        if (/^\/org\/bluez\/hci\d+\/dev_[0-9A-F_]+$/.test(path))
-            findPhone()
-    }
-
-    // connman names a Bluetooth service bluetooth_<adapter>_<device>, with
-    // both addresses in hex.
-    function hotspotAddress() {
-        var m = /bluetooth_[0-9A-Fa-f]{12}_([0-9A-Fa-f]{12})$/.exec(networkMode.hotspot.path)
-        return m ? m[1].toUpperCase() : ""
-    }
-
-    function findPhone() {
-        bluez.typedCall("GetManagedObjects", [], function (objects) {
-            var wanted = hotspotAddress()
-            var byAddress = ""
-            var firstPhone = ""
-            for (var path in objects) {
-                var device = objects[path]["org.bluez.Device1"]
-                if (!device || !device.Paired || path.indexOf(adapterPath + "/") !== 0)
-                    continue
-                if (wanted !== "" && String(device.Address).replace(/:/g, "") === wanted)
-                    byAddress = path
-                if (firstPhone === "" && device.Icon === "phone")
-                    firstPhone = path
-            }
-            var found = byAddress !== "" ? byAddress : firstPhone
-            phonePath = found
-            phoneLe = found !== "" && objects[found]["org.bluez.Battery1"] !== undefined
-        }, function (error, message) {
-            console.warn("InternetPage: BlueZ GetManagedObjects failed: " + message)
-        })
-    }
-
-    Connections {
-        target: networkMode.hotspot
-        function onPathChanged() { page.findPhone() }
-    }
-
-    Component.onCompleted: findPhone()
 
     function modeIcon(mode, selected) {
         if (mode === "wifi")
@@ -139,7 +60,7 @@ Item {
     function addressesText() {
         var lines = []
         var services = [manager ? manager.connectedWifi : null,
-                        networkMode.hotspotAvailable ? networkMode.hotspot : null]
+                        networkMode.hotspotPresent ? networkMode.hotspot : null]
         for (var i = 0; i < services.length; i++) {
             var service = services[i]
             if (!service || !service.connected)
@@ -161,19 +82,27 @@ Item {
         return qsTr("On, not connected")
     }
 
+    function bluetoothText() {
+        if (!phoneLink.adapterPowered)
+            return qsTrId("id-off")
+        return networkMode.classicBluetooth ? qsTr("On, LE and classic") : qsTr("On, LE only")
+    }
+
     function phoneText() {
-        if (phonePath === "")
+        if (phoneLink.path === "")
             return qsTr("Not paired")
-        if (phoneLe)
+        if (phoneLink.le)
             return qsTr("LE connected")
-        if (phoneConnected)
+        if (phoneLink.connected)
             return qsTr("LE not connected, classic link up")
         return qsTrId("id-disconnected")
     }
 
     function hotspotText() {
-        if (!networkMode.hotspotAvailable)
-            return qsTr("Not available")
+        if (!networkMode.classicBluetooth)
+            return qsTr("Unavailable (classic Bluetooth off)")
+        if (!networkMode.hotspotPresent)
+            return qsTr("Unavailable")
         var hotspot = networkMode.hotspot
         switch (hotspot.state) {
         case "idle":
@@ -287,7 +216,33 @@ Item {
                 }
             }
 
-            Item { width: parent.width; height: Dims.l(6) }
+            Item { width: parent.width; height: Dims.l(4) }
+
+            // ioslink's ClassicBluetooth: the hotspot and the phone's covers
+            // need it; Bluetooth LE stays on either way.
+            LabeledSwitch {
+                id: classicSwitch
+                width: parent.width
+                height: Dims.h(25)
+                text: qsTr("Classic Bluetooth")
+                enabled: networkMode.classicSwitchable
+                opacity: enabled ? 1.0 : 0.6
+                checked: networkMode.classicBluetooth
+                onCheckedChanged: {
+                    if (checked !== networkMode.classicBluetooth)
+                        networkMode.setClassicBluetooth(checked)
+                }
+                // A tap sets checked itself, which ends the binding above, so
+                // follow changes made elsewhere by hand.
+                Connections {
+                    target: networkMode
+                    function onClassicBluetoothChanged() {
+                        classicSwitch.checked = networkMode.classicBluetooth
+                    }
+                }
+            }
+
+            Item { width: parent.width; height: Dims.l(4) }
 
             Column {
                 anchors.horizontalCenter: parent.horizontalCenter
@@ -307,7 +262,7 @@ Item {
                 }
                 StatusRow {
                     caption: qsTrId("id-bluetooth-page")
-                    value: adapter.powered ? qsTr("On") : qsTrId("id-off")
+                    value: page.bluetoothText()
                 }
                 StatusRow {
                     caption: qsTr("Phone")
