@@ -44,6 +44,7 @@ Application {
     Component { id: dateLayer;                  DatePage       { } }
     Component { id: timezoneLayer;              TimezonePage   { } }
     Component { id: languageLayer;              LanguagePage   { } }
+    Component { id: internetLayer;              InternetPage   { } }
     Component { id: bluetoothLayer;             BluetoothPage  { } }
     Component { id: displayLayer;               DisplayPage    { } }
     Component { id: soundLayer;                 SoundPage      { } }
@@ -58,6 +59,7 @@ Application {
     Component { id: aboutLayer;                 AboutPage      { } }
 
     TiltToWake { id: tiltToWake }
+    NetworkMode { id: networkMode }
 
     LayerStack {
         id: layerStack
@@ -152,6 +154,12 @@ Application {
                     title: qsTrId("id-timezone-page")
                     iconName: "ios-globe-outline"
                     onClicked: layerStack.push(timezoneLayer)
+                }
+                ListItem {
+                    title: qsTr("Internet")
+                    iconName: networkMode.mode === "wifi" ? "ios-wifi-outline" :
+                              networkMode.mode === "hotspot" ? "ios-link-outline" : "sonic/ios-globe-off"
+                    onClicked: layerStack.push(internetLayer)
                 }
                 ListItem {
                     //% "Bluetooth"
