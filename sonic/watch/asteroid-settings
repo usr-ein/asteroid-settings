@@ -1,0 +1,13 @@
+#!/bin/sh
+# Sonic Screwdriver: start the fork's Settings app, or the stock one.
+# Installed by sonic/deploy.sh as /usr/local/bin/asteroid-settings. The launcher
+# starts apps by name (Exec=asteroid-settings), and /usr/local/bin comes before
+# /usr/bin in its PATH, so this script runs instead of the stock
+# /usr/bin/asteroid-settings, which stays untouched.
+# Undo: sonic/deploy.sh --stock
+ours=/usr/local/lib/sonic-settings/asteroid-settings.so
+
+if [ -f "$ours" ]; then
+	exec invoker --single-instance --type=qt5 "$ours" "$@"
+fi
+exec /usr/bin/asteroid-settings "$@"
