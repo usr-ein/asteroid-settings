@@ -22,6 +22,7 @@ import org.asteroid.controls 1.0
 import org.asteroid.utils 1.0
 import org.asteroid.settings 1.0
 import Nemo.Configuration 1.0
+import Connman 0.2
 
 Application {
     id: app
@@ -59,7 +60,10 @@ Application {
     Component { id: aboutLayer;                 AboutPage      { } }
 
     TiltToWake { id: tiltToWake }
-    NetworkMode { id: networkMode }
+    NetworkTechnology {
+        id: wifiTechnology
+        path: "/net/connman/technology/wifi"
+    }
 
     LayerStack {
         id: layerStack
@@ -157,8 +161,7 @@ Application {
                 }
                 ListItem {
                     title: qsTr("Internet")
-                    iconName: networkMode.mode === "wifi" ? "ios-wifi-outline" :
-                              networkMode.mode === "hotspot" ? "ios-link-outline" : "sonic/ios-globe-off"
+                    iconName: wifiTechnology.powered ? "ios-wifi-outline" : "sonic/ios-globe-off"
                     onClicked: layerStack.push(internetLayer)
                 }
                 ListItem {

@@ -20,37 +20,42 @@ import org.asteroid.controls 1.0
 import Nemo.DBus 2.0
 import Connman 0.2
 
-// How the watch reaches the internet: Wi-Fi, the phone's hotspot over
-// Bluetooth, or nothing (see NetworkMode.qml), and the state of each link.
+// How the watch reaches the internet: over Wi-Fi only. The watch talks to the
+// phone over Bluetooth LE alone (ADR 0001 in sonic-screwdriver), so there is
+// no hotspot. The page switches Wi-Fi on and off, and shows the internet
+// state, the address and the phone's LE link.
 // The qsTr() strings are new in this fork and have no translations yet; the
 // qsTrId() ones reuse the app's.
 Item {
     id: page
 
     readonly property var manager: managerFactory.instance
-    readonly property string adapterPath: "/org/bluez/hci0"
-    // The phone in BlueZ: the device behind connman's hotspot service, or
-    // else the first paired phone.
+    // The phone's device object in BlueZ, or "" when no phone is paired.
     property string phonePath: ""
-    // BlueZ adds org.bluez.Battery1 to a device once its LE link is up and its
-    // GATT battery service is read, and removes it when the LE link drops,
-    // whatever the classic link does. Device1.Connected can't tell: it stays
-    // true while either link is up.
-    property bool phoneLe: false
-    readonly property bool phoneConnected: phonePath !== "" && phoneDevice.connected
-
-    NetworkMode { id: networkMode }
+    // ioslink decides whether the phone's LE link is up: from Battery1 when
+    // BlueZ has it, otherwise with a GATT read every 30 s. Without ioslink,
+    // BlueZ's Device1.Connected stands in. The watch is LE-only, so any link
+    // to the phone is the LE one.
+    readonly property bool phoneLe: ioslinkPhone.status === DBusInterface.Available ?
+                                        ioslinkPhone.connected :
+                                        phonePath !== "" && phoneDevice.connected
 
     NetworkManagerFactory { id: managerFactory }
 
+    NetworkTechnology {
+        id: wifi
+        path: "/net/connman/technology/wifi"
+    }
+
     DBusInterface {
-        id: adapter
-        bus: DBus.SystemBus
-        service: "org.bluez"
-        path: page.adapterPath
-        iface: "org.bluez.Adapter1"
+        id: ioslinkPhone
+        bus: DBus.SessionBus
+        service: "org.sonicscrewdriver.ioslink"
+        path: "/org/sonicscrewdriver/ioslink"
+        iface: "org.sonicscrewdriver.ioslink.Phone"
+        watchServiceStatus: true
         propertiesEnabled: true
-        property bool powered: false
+        property bool connected: false
     }
 
     DBusInterface {
@@ -63,6 +68,8 @@ Item {
         property bool connected: false
     }
 
+    // Devices come and go as they are paired or removed; GATT objects, which
+    // come and go with the LE link, don't matter here.
     DBusInterface {
         id: bluez
         bus: DBus.SystemBus
@@ -71,59 +78,32 @@ Item {
         iface: "org.freedesktop.DBus.ObjectManager"
         signalsEnabled: true
 
-        // GATT objects come and go with the LE link; only devices matter here.
-        function interfacesAdded(path, interfaces) { page.objectsChanged(path) }
-        function interfacesRemoved(path, interfaces) { page.objectsChanged(path) }
+        function interfacesAdded(objectPath, interfaces) { changed(objectPath) }
+        function interfacesRemoved(objectPath, interfaces) { changed(objectPath) }
+        function changed(objectPath) {
+            if (/^\/org\/bluez\/hci\d+\/dev_[0-9A-F_]+$/.test(objectPath))
+                page.findPhone()
+        }
     }
 
-    function objectsChanged(path) {
-        if (/^\/org\/bluez\/hci\d+\/dev_[0-9A-F_]+$/.test(path))
-            findPhone()
-    }
-
-    // connman names a Bluetooth service bluetooth_<adapter>_<device>, with
-    // both addresses in hex.
-    function hotspotAddress() {
-        var m = /bluetooth_[0-9A-Fa-f]{12}_([0-9A-Fa-f]{12})$/.exec(networkMode.hotspot.path)
-        return m ? m[1].toUpperCase() : ""
-    }
-
+    // The phone is the first paired device whose icon is "phone".
     function findPhone() {
         bluez.typedCall("GetManagedObjects", [], function (objects) {
-            var wanted = hotspotAddress()
-            var byAddress = ""
-            var firstPhone = ""
-            for (var path in objects) {
-                var device = objects[path]["org.bluez.Device1"]
-                if (!device || !device.Paired || path.indexOf(adapterPath + "/") !== 0)
-                    continue
-                if (wanted !== "" && String(device.Address).replace(/:/g, "") === wanted)
-                    byAddress = path
-                if (firstPhone === "" && device.Icon === "phone")
-                    firstPhone = path
+            var found = ""
+            for (var objectPath in objects) {
+                var properties = objects[objectPath]["org.bluez.Device1"]
+                if (properties && properties.Paired && properties.Icon === "phone") {
+                    found = objectPath
+                    break
+                }
             }
-            var found = byAddress !== "" ? byAddress : firstPhone
-            phonePath = found
-            phoneLe = found !== "" && objects[found]["org.bluez.Battery1"] !== undefined
+            page.phonePath = found
         }, function (error, message) {
             console.warn("InternetPage: BlueZ GetManagedObjects failed: " + message)
         })
     }
 
-    Connections {
-        target: networkMode.hotspot
-        function onPathChanged() { page.findPhone() }
-    }
-
     Component.onCompleted: findPhone()
-
-    function modeIcon(mode, selected) {
-        if (mode === "wifi")
-            return selected && networkMode.wifi.connected ? "ios-wifi" : "ios-wifi-outline"
-        if (mode === "hotspot")
-            return selected && networkMode.hotspot.connected ? "ios-link" : "ios-link-outline"
-        return "sonic/ios-globe-off"
-    }
 
     function internetText() {
         var state = manager ? manager.state : ""
@@ -138,12 +118,8 @@ Item {
 
     function addressesText() {
         var lines = []
-        var services = [manager ? manager.connectedWifi : null,
-                        networkMode.hotspotAvailable ? networkMode.hotspot : null]
-        for (var i = 0; i < services.length; i++) {
-            var service = services[i]
-            if (!service || !service.connected)
-                continue
+        var service = manager ? manager.connectedWifi : null
+        if (service && service.connected) {
             if (service.ipv4 && service.ipv4.Address)
                 lines.push(service.ipv4.Address)
             if (service.ipv6 && service.ipv6.Address)
@@ -153,7 +129,7 @@ Item {
     }
 
     function wifiText() {
-        if (!networkMode.wifi.powered)
+        if (!wifi.powered)
             return qsTrId("id-off")
         var service = manager ? manager.connectedWifi : null
         if (service && service.connected)
@@ -162,36 +138,11 @@ Item {
     }
 
     function phoneText() {
-        if (phonePath === "")
-            return qsTr("Not paired")
         if (phoneLe)
             return qsTr("LE connected")
-        if (phoneConnected)
-            return qsTr("LE not connected, classic link up")
-        return qsTrId("id-disconnected")
-    }
-
-    function hotspotText() {
-        if (!networkMode.hotspotAvailable)
-            return qsTr("Not available")
-        var hotspot = networkMode.hotspot
-        switch (hotspot.state) {
-        case "idle":
-            return qsTrId("id-disconnected")
-        case "association":
-            return qsTr("Connecting")
-        case "configuration":
-            return qsTr("Getting an address")
-        case "ready":
-            return qsTrId("id-connected")
-        case "online":
-            return qsTr("Online")
-        case "disconnect":
-            return qsTr("Disconnecting")
-        case "failure":
-            return hotspot.error !== "" ? qsTr("Failed: %1").arg(hotspot.error) : qsTr("Failed")
-        }
-        return hotspot.state
+        if (phonePath === "")
+            return qsTr("Not paired")
+        return qsTr("LE not connected")
     }
 
     component StatusRow: Column {
@@ -228,94 +179,47 @@ Item {
             id: contentColumn
             width: parent.width
 
-            Item { width: parent.width; height: Dims.l(6) }
-
-            Row {
-                anchors.horizontalCenter: parent.horizontalCenter
-                spacing: Dims.l(5)
-
-                Repeater {
-                    model: [
-                        { mode: "wifi", label: qsTr("Wi-Fi"), tint: "#2196f3" },
-                        { mode: "hotspot", label: qsTr("Hotspot"), tint: "#4caf50" },
-                        { mode: "none", label: qsTr("Nothing"), tint: "#757575" }
-                    ]
-
-                    // Like the quick panel's toggles: the current mode is
-                    // filled with its colour.
-                    delegate: Item {
-                        readonly property bool selected: networkMode.mode === modelData.mode
-                        readonly property bool usable: modelData.mode !== "hotspot" || networkMode.hotspotAvailable
-
-                        width: Dims.l(22)
-                        height: circle.height + modeLabel.height + Dims.l(1)
-                        opacity: usable ? 1 : 0.4
-
-                        Rectangle {
-                            id: circle
-                            width: parent.width
-                            height: width
-                            radius: width / 2
-                            color: selected ? modelData.tint : "#222222"
-                            opacity: modeArea.pressed ? 0.6 : selected ? 0.75 : 0.2
-                        }
-
-                        Icon {
-                            anchors.centerIn: circle
-                            width: circle.width * 0.5
-                            height: width
-                            name: page.modeIcon(modelData.mode, selected)
-                            opacity: selected ? 1 : 0.6
-                        }
-
-                        Label {
-                            id: modeLabel
-                            anchors.top: circle.bottom
-                            anchors.topMargin: Dims.l(1)
-                            anchors.horizontalCenter: circle.horizontalCenter
-                            text: modelData.label
-                            font.pixelSize: Dims.l(5)
-                        }
-
-                        MouseArea {
-                            id: modeArea
-                            anchors.fill: parent
-                            enabled: usable
-                            onClicked: networkMode.setMode(modelData.mode)
-                        }
+            LabeledSwitch {
+                id: wifiSwitch
+                width: parent.width
+                height: Dims.h(25)
+                text: qsTr("Wi-Fi")
+                checked: wifi.powered
+                onCheckedChanged: {
+                    if (checked !== wifi.powered)
+                        wifi.powered = checked
+                }
+                // A tap sets checked itself, which ends the binding above, so
+                // follow changes made elsewhere, such as the quick panel, by hand.
+                Connections {
+                    target: wifi
+                    function onPoweredChanged() {
+                        wifiSwitch.checked = wifi.powered
                     }
                 }
             }
 
-            Item { width: parent.width; height: Dims.l(6) }
+            Item { width: parent.width; height: Dims.l(4) }
 
             Column {
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: Dims.w(70)
 
                 StatusRow {
-                    caption: qsTr("Internet")
-                    value: page.internetText()
+                    caption: qsTr("Wi-Fi network")
+                    value: page.wifiText()
                 }
                 StatusRow {
                     caption: qsTr("IP address")
                     value: page.addressesText()
                 }
                 StatusRow {
-                    caption: qsTr("Wi-Fi")
-                    value: page.wifiText()
+                    caption: qsTr("Internet")
+                    value: page.internetText()
                 }
                 StatusRow {
-                    caption: qsTrId("id-bluetooth-page")
-                    value: adapter.powered ? qsTr("On") : qsTrId("id-off")
-                }
-                StatusRow {
-                    caption: qsTr("Phone")
+                    caption: qsTr("iPhone")
                     value: page.phoneText()
-                }
-                StatusRow {
-                    caption: qsTr("Hotspot")
-                    value: page.hotspotText()
                 }
             }
 
