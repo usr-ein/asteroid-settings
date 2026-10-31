@@ -22,6 +22,7 @@ import org.asteroid.controls 1.0
 import org.asteroid.utils 1.0
 import org.asteroid.settings 1.0
 import Nemo.Configuration 1.0
+import Connman 0.2
 
 Application {
     id: app
@@ -44,6 +45,7 @@ Application {
     Component { id: dateLayer;                  DatePage       { } }
     Component { id: timezoneLayer;              TimezonePage   { } }
     Component { id: languageLayer;              LanguagePage   { } }
+    Component { id: internetLayer;              InternetPage   { } }
     Component { id: bluetoothLayer;             BluetoothPage  { } }
     Component { id: displayLayer;               DisplayPage    { } }
     Component { id: soundLayer;                 SoundPage      { } }
@@ -58,6 +60,10 @@ Application {
     Component { id: aboutLayer;                 AboutPage      { } }
 
     TiltToWake { id: tiltToWake }
+    NetworkTechnology {
+        id: wifiTechnology
+        path: "/net/connman/technology/wifi"
+    }
 
     LayerStack {
         id: layerStack
@@ -152,6 +158,11 @@ Application {
                     title: qsTrId("id-timezone-page")
                     iconName: "ios-globe-outline"
                     onClicked: layerStack.push(timezoneLayer)
+                }
+                ListItem {
+                    title: qsTr("Internet")
+                    iconName: wifiTechnology.powered ? "ios-wifi-outline" : "sonic/ios-globe-off"
+                    onClicked: layerStack.push(internetLayer)
                 }
                 ListItem {
                     //% "Bluetooth"

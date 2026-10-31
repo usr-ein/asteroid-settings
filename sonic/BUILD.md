@@ -80,6 +80,10 @@ stock theme (package asteroid-icons-ion) lacks are in `sonic/icons/`.
 `deploy.sh` installs them into `/usr/share/icons/asteroid/sonic/`, and QML
 names them `sonic/<name>`. `--stock` leaves them there; nothing stock uses them.
 
+| Icon | Shows | Drawn from |
+|---|---|---|
+| `ios-globe-off` | The Internet entry in the menu while Wi-Fi is off | `ios-globe-outline`, crossed by the slash of the `ios-*-off` icons. The globe's strokes are cut 25 px either side of the slash, as in `ios-notifications-off`. |
+
 The launcher fork, usr-ein/asteroid-launcher, installs its icons in the same
 place. An icon both forks use is in both, and the two copies must stay
 identical.
