@@ -94,7 +94,8 @@ Item {
         if (phoneLink.le)
             return qsTr("LE connected")
         if (phoneLink.connected)
-            return qsTr("LE not connected, classic link up")
+            return phoneLink.leKnown ? qsTr("LE not connected, classic link up")
+                                     : qsTr("Connected; LE unknown, ioslink isn't running")
         return qsTrId("id-disconnected")
     }
 
