@@ -163,6 +163,20 @@ Item {
                 checked: tapToWake.enabled
                 onCheckedChanged: tapToWake.enabled = checked
             }
+
+            RowSeparator {}
+
+            // The second screen's backlight (SecondScreenPage.qml). New in
+            // this fork, so its string has no translations yet.
+            LabeledActionButton {
+                width: parent.width
+                height: rowHeight
+                text: qsTr("Second screen")
+                icon: "ios-arrow-dropright"
+                onClicked: function() { layerStack.push(secondScreenLayer) }
+            }
+
+            Item { width: parent.width; height: Dims.l(10) }
         }
     }
 
