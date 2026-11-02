@@ -28,7 +28,8 @@ the launcher fork's (usr-ein/asteroid-launcher), so the SDK is installed once:
   6.5 GB). Its Qt 5.15.16, libasteroidapp, mce and connman-qt are the exact
   builds on the watch. The SDK is x86_64-only, so the container is
   `linux/amd64` and runs under Rosetta on Apple Silicon.
-- **Build tree:** the Docker volume `sonic-asteroid-settings-build`.
+- **Build tree:** the Docker volume `sonic-asteroid-settings-build`, or the one
+  `SONIC_BUILD_VOLUME` names, for another worktree of the fork.
 
 The watch is the `sonic-screwdriver` host in `~/.ssh/config`. Set `SONIC_WATCH`
 to use another.
@@ -83,6 +84,7 @@ names them `sonic/<name>`. `--stock` leaves them there; nothing stock uses them.
 | Icon | Shows | Drawn from |
 |---|---|---|
 | `ios-globe-off` | The Internet entry in the menu while Wi-Fi is off | `ios-globe-outline`, crossed by the slash of the `ios-*-off` icons. The globe's strokes are cut 25 px either side of the slash, as in `ios-notifications-off`. |
+| `find-phone` | The quick panel page's Find phone button, which rings the iPhone | An original phone with sound waves. The launcher fork compiles in the same file for the panel's own button. |
 
 The launcher fork, usr-ein/asteroid-launcher, installs its icons in the same
 place. An icon both forks use is in both, and the two copies must stay
