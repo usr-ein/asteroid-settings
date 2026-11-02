@@ -48,6 +48,7 @@ Application {
     Component { id: internetLayer;              InternetPage   { } }
     Component { id: bluetoothLayer;             BluetoothPage  { } }
     Component { id: displayLayer;               DisplayPage    { } }
+    Component { id: secondScreenLayer;          SecondScreenPage { } }
     Component { id: soundLayer;                 SoundPage      { } }
     Component { id: nightstandLayer;            NightstandPage { } }
     Component { id: nightstandWatchfaceLayer;   NightstandWatchfacePage { } }

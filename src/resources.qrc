@@ -8,6 +8,7 @@
         <file>qml/InternetPage.qml</file>
         <file>qml/BluetoothPage.qml</file>
         <file>qml/DisplayPage.qml</file>
+        <file>qml/SecondScreenPage.qml</file>
         <file>qml/SoundPage.qml</file>
         <file>qml/NightstandPage.qml</file>
         <file>qml/NightstandWatchfacePage.qml</file>
