@@ -25,7 +25,8 @@ sdk_dir=/opt/asteroid-sdk
 # Shared with the launcher fork: same image, same SDK volume.
 image=sonic-asteroid-launcher-sdk:2.1
 sdk_volume=sonic-asteroid-sdk-2.1
-build_volume=sonic-asteroid-settings-build
+# Another worktree of the fork can build in a volume of its own.
+build_volume=${SONIC_BUILD_VOLUME:-sonic-asteroid-settings-build}
 
 log() { printf '\033[1m==> %s\033[0m\n' "$*"; }
 run() { docker run --rm --platform linux/amd64 "$@"; }

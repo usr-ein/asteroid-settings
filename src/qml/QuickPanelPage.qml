@@ -41,6 +41,7 @@ Item {
         id: sliderToggles
         key: "/desktop/asteroid/quickpanel/slider"
         defaultValue: [
+            "findPhoneButton",
             "brightnessToggle",
             "bluetoothToggle",
             "hapticsToggle",
@@ -71,7 +72,8 @@ Item {
             "powerOffToggle": true,
             "rebootToggle": true,
             "musicButton": false,
-            "flashlightButton": false
+            "flashlightButton": false,
+            "findPhoneButton": true
         }
     }
 
@@ -134,6 +136,11 @@ Item {
         toggleOptions["musicButton"] = ({ name: qsTrId("id-toggle-music"), icon: "ios-musical-notes-outline"});
         //% "Flashlight"
         toggleOptions["flashlightButton"] = ({ name: qsTrId("id-toggle-flashlight"), icon: "ios-bulb-outline"});
+        // The launcher fork's button that rings the iPhone, through Sonic
+        // Screwdriver's ioslink. Without an entry here, this page would drop
+        // it from the panel when it saves. Plain English: no translation has
+        // the string yet.
+        toggleOptions["findPhoneButton"] = ({ name: "Find phone", icon: "sonic/find-phone"});
     }
 
     ListModel {
